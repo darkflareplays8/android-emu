@@ -4,63 +4,54 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 
-# Minimal deps only
+# All deps in one layer, clean immediately
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl wget unzip openjdk-17-jre-headless \
+    curl wget unzip openjdk-11-jre-headless \
     python3 python3-pip \
-    xvfb x11vnc \
-    supervisor \
-    libgl1 libgles2 libpulse0 libnss3 libxss1 libxtst6 \
-    libxrandr2 libasound2 libatk1.0-0 libgtk-3-0 \
-    && rm -rf /var/lib/apt/lists/*
+    xvfb x11vnc supervisor \
+    libgl1 libgles2 libpulse0 libnss3 \
+    libxss1 libxtst6 libxrandr2 libasound2 \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && pip3 install --no-cache-dir websockify \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Node.js 20
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Android SDK cmdline-tools
+RUN wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/ct.zip \
+    && unzip -q /tmp/ct.zip -d /tmp \
+    && mkdir -p $ANDROID_HOME/cmdline-tools \
+    && mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest \
+    && rm /tmp/ct.zip
 
-# websockify
-RUN pip3 install --no-cache-dir websockify
+# Install emulator + smallest possible system image (API 28, no Google APIs, no ARM)
+RUN yes | sdkmanager --licenses > /dev/null \
+    && sdkmanager "platform-tools" "emulator" "system-images;android-28;default;x86" \
+    && rm -rf $ANDROID_HOME/emulator/lib64/qt /tmp/* \
+    && find $ANDROID_HOME -name "*.pdb" -delete
 
-# Android SDK cmdline-tools only
-RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
-    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/ct.zip && \
-    unzip -q /tmp/ct.zip -d /tmp && \
-    mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest && \
-    rm /tmp/ct.zip
-
-# Install only what's needed — no Google APIs (saves ~1GB), use AOSP image
-RUN yes | sdkmanager --licenses > /dev/null && \
-    sdkmanager --install \
-      "platform-tools" \
-      "emulator" \
-      "system-images;android-30;default;x86_64"
-
-# Create AVD — Android 11 AOSP (much smaller than 14)
+# Create AVD
 RUN echo "no" | avdmanager create avd \
-    -n android_device \
-    -k "system-images;android-30;default;x86_64" \
-    --device "pixel" \
-    --force
+    -n avd \
+    -k "system-images;android-28;default;x86" \
+    --force \
+    && echo "hw.ramSize=1024\nhw.gpu.enabled=no\nhw.gpu.mode=swiftshader_indirect\nhw.lcd.width=540\nhw.lcd.height=960\nhw.lcd.density=240\nvm.heapSize=192\ndisk.dataPartition.size=1024M\nhw.keyboard=yes\nshowDeviceFrame=no\nfastboot.forceColdBoot=no\nhw.mainKeys=no\nhw.camera.back=none\nhw.camera.front=none\nhw.audioInput=no\nhw.audioOutput=no\nhw.gps=no\nhw.sensors.proximity=no\nhw.sensors.light=no\nhw.sensors.gyroscope=no\nhw.sensors.magnetic_field=no" \
+    >> /root/.android/avd/avd.avd/config.ini
 
-# Tune AVD for low-resource server
-RUN echo "hw.ramSize=1536\nhw.gpu.enabled=no\nhw.gpu.mode=swiftshader_indirect\nhw.lcd.width=720\nhw.lcd.height=1280\nhw.lcd.density=320\nvm.heapSize=256\ndisk.dataPartition.size=2048M\nhw.keyboard=yes\nshowDeviceFrame=no\nfastboot.forceColdBoot=no\nhw.mainKeys=no" \
-    >> /root/.android/avd/android_device.avd/config.ini
+# noVNC minimal (core files only)
+RUN mkdir -p /opt/novnc/core /opt/novnc/vendor \
+    && wget -q https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.tar.gz -O /tmp/n.tar.gz \
+    && tar -xzf /tmp/n.tar.gz -C /tmp \
+    && cp -r /tmp/noVNC-1.4.0/core /opt/novnc/ \
+    && cp -r /tmp/noVNC-1.4.0/vendor /opt/novnc/ \
+    && cp /tmp/noVNC-1.4.0/vnc.html /opt/novnc/ \
+    && cp /tmp/noVNC-1.4.0/vnc_lite.html /opt/novnc/ \
+    && rm -rf /tmp/*
 
-# noVNC (just the essentials)
-RUN mkdir -p /opt/novnc && \
-    wget -q https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.tar.gz -O /tmp/novnc.tar.gz && \
-    tar -xzf /tmp/novnc.tar.gz -C /opt/novnc --strip-components=1 && \
-    rm /tmp/novnc.tar.gz
-
-# Node app
 WORKDIR /app
 COPY package.json ./
-RUN npm install
+RUN npm install && npm cache clean --force
 COPY . .
-
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 3000
-
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

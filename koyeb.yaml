@@ -1,0 +1,16 @@
+name: android-emulator
+services:
+  - name: web
+    type: web
+    dockerfile: Dockerfile
+    ports:
+      - port: 3000
+        protocol: http
+    env:
+      - key: PORT
+        value: "3000"
+    health_checks:
+      - path: /api/status
+        port: 3000
+        initial_delay: 120
+        period: 30

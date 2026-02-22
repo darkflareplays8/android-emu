@@ -6,7 +6,7 @@ ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-too
 
 # All deps in one layer, clean immediately
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl wget unzip openjdk-11-jre-headless \
+    curl wget unzip openjdk-17-jre-headless \
     python3 python3-pip \
     xvfb x11vnc supervisor \
     libgl1 libgles2 libpulse0 libnss3 \

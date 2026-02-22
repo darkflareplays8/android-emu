@@ -1,0 +1,48 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - name: Setup & Run
+    init: |
+      # Android SDK setup (runs once, gets cached)
+      mkdir -p $HOME/android-sdk/cmdline-tools
+      wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/ct.zip
+      unzip -q /tmp/ct.zip -d /tmp
+      mv /tmp/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+
+      export ANDROID_HOME=$HOME/android-sdk
+      export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
+
+      yes | sdkmanager --licenses > /dev/null
+      sdkmanager "platform-tools" "emulator" "system-images;android-27;default;x86"
+
+      echo "no" | avdmanager create avd -n avd -k "system-images;android-27;default;x86" --force
+
+      printf "hw.ramSize=2048\nhw.gpu.enabled=no\nhw.gpu.mode=swiftshader_indirect\nhw.lcd.width=540\nhw.lcd.height=960\nhw.lcd.density=240\nvm.heapSize=256\ndisk.dataPartition.size=512M\nhw.keyboard=yes\nshowDeviceFrame=no\nfastboot.forceColdBoot=no\nhw.mainKeys=no\nhw.camera.back=none\nhw.camera.front=none\nhw.audioInput=no\nhw.audioOutput=no\nhw.gps=no\nhw.sensors.proximity=no\nhw.sensors.light=no\nhw.sensors.gyroscope=no\nhw.sensors.magnetic_field=no\nhw.accelerometer=no\nhw.battery=no\n" \
+        >> $HOME/.android/avd/avd.avd/config.ini
+
+      npm install
+
+    command: |
+      export ANDROID_HOME=$HOME/android-sdk
+      export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
+
+      # Start virtual display
+      Xvfb :0 -screen 0 540x960x16 -ac -noreset &
+      sleep 2
+
+      # Start emulator
+      DISPLAY=:0 emulator -avd avd -no-window -no-audio \
+        -gpu swiftshader_indirect -no-boot-anim \
+        -memory 2048 -cores 2 -no-snapshot -no-accel -no-metrics &
+
+      echo "Emulator starting, waiting 30s..."
+      sleep 30
+
+      # Start node server
+      npm start
+
+ports:
+  - port: 3000
+    onOpen: open-browser
+    visibility: public

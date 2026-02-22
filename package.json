@@ -1,0 +1,17 @@
+{
+  "name": "android-emulator-web",
+  "version": "1.0.0",
+  "description": "Web-based Android emulator running 24/7",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup": "bash scripts/setup.sh"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "adbkit": "^3.2.6",
+    "http-proxy": "^1.18.1",
+    "net": "^1.0.2"
+  }
+}

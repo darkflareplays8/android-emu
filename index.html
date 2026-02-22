@@ -4,711 +4,425 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Android Emulator</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0a0c;
-    --surface: #111115;
-    --border: #1e1e26;
-    --accent: #00ff88;
-    --accent2: #0088ff;
-    --warn: #ff6b35;
-    --text: #c8c8d4;
-    --text-dim: #555566;
+    --bg: #0a0a0c; --surface: #111115; --border: #1e1e26;
+    --accent: #00ff88; --accent2: #0088ff; --warn: #ff6b35;
+    --text: #c8c8d4; --dim: #555566;
     --mono: 'Share Tech Mono', monospace;
     --sans: 'Barlow', sans-serif;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; display: flex; flex-direction: column; }
+  body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,.012) 2px,rgba(0,255,136,.012) 4px); pointer-events:none; z-index:9999; }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-  }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 24px; border-bottom:1px solid var(--border); background:var(--surface); }
+  .logo { font-family:var(--mono); font-size:13px; letter-spacing:3px; color:var(--accent); }
+  .logo span { color:var(--dim); }
+  .hstatus { font-family:var(--mono); font-size:11px; color:var(--dim); display:flex; gap:16px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--dim); display:inline-block; margin-right:5px; }
+  .dot.on { background:var(--accent); box-shadow:0 0 8px var(--accent); animation:pulse 2s infinite; }
+  .dot.warn { background:var(--warn); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-  /* Scanline overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,255,136,0.015) 2px,
-      rgba(0,255,136,0.015) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
-  }
+  main { flex:1; display:grid; grid-template-columns:1fr auto 280px; height:calc(100vh - 49px); overflow:hidden; }
 
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-  }
+  .left { border-right:1px solid var(--border); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .right { border-left:1px solid var(--border); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
 
-  .logo {
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 3px;
-    color: var(--accent);
-    text-transform: uppercase;
-  }
+  .center { display:flex; flex-direction:column; align-items:center; padding:16px; overflow-y:auto; }
+  .phone { position:relative; width:270px; background:#080810; border-radius:32px; border:2px solid #222230; box-shadow:0 0 60px rgba(0,136,255,.07),inset 0 0 20px rgba(0,0,0,.8); overflow:hidden; flex-shrink:0; }
+  .notch { height:24px; background:#080810; display:flex; align-items:center; justify-content:center; border-bottom:1px solid #111120; }
+  .notch-inner { width:70px; height:8px; background:#0d0d1a; border-radius:4px; }
 
-  .logo span { color: var(--text-dim); }
+  .screen-wrap { width:100%; aspect-ratio:9/16; background:#000; position:relative; overflow:hidden; cursor:crosshair; }
+  #screen { width:100%; height:100%; display:block; image-rendering:pixelated; }
+  .boot-overlay { position:absolute; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; font-family:var(--mono); font-size:11px; color:var(--accent); transition:opacity .5s; }
+  .boot-bar-wrap { width:100px; height:2px; background:var(--border); border-radius:1px; overflow:hidden; }
+  .boot-bar { height:100%; background:var(--accent); width:0; transition:width .4s; box-shadow:0 0 8px var(--accent); }
+  #fps-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.7); font-family:var(--mono); font-size:9px; color:var(--accent); padding:2px 5px; border-radius:3px; }
 
-  .status-bar {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-  }
+  .nav { height:36px; background:rgba(8,8,16,.95); border-top:1px solid #111120; display:flex; align-items:center; justify-content:space-evenly; }
+  .nav button { background:none; border:none; color:var(--dim); cursor:pointer; padding:6px 14px; border-radius:4px; font-size:13px; transition:color .15s,background .15s; }
+  .nav button:hover { color:var(--text); background:var(--border); }
+  .nav button:active { color:var(--accent); }
 
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--text-dim);
-    display: inline-block;
-    margin-right: 6px;
-    transition: background 0.3s;
-  }
-  .status-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
-  .status-dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .phone-label { font-family:var(--mono); font-size:9px; color:var(--dim); letter-spacing:2px; margin-top:10px; }
+  .connect-row { margin-top:12px; display:flex; gap:8px; }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+  .sec { background:var(--surface); border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+  .sec-h { padding:8px 12px; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--dim); display:flex; align-items:center; justify-content:space-between; }
+  .sec-b { padding:12px; }
 
-  main {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr auto 320px;
-    gap: 0;
-    height: calc(100vh - 49px);
-    overflow: hidden;
-  }
+  .btn { display:inline-flex; align-items:center; gap:5px; padding:7px 12px; border-radius:5px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:var(--mono); font-size:11px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn:active { background:rgba(0,255,136,.08); }
+  .btn.blue { border-color:var(--accent2); color:var(--accent2); }
+  .btn.blue:hover { background:rgba(0,136,255,.1); }
+  .btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .btn-row { display:flex; gap:7px; flex-wrap:wrap; }
 
-  /* ── Left panel ── */
-  .left-panel {
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+  input[type=text] { background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:var(--mono); font-size:12px; padding:7px 10px; width:100%; outline:none; transition:border-color .15s; }
+  input[type=text]:focus { border-color:var(--accent2); }
+  .row { display:flex; gap:8px; }
+  .row input { flex:1; }
 
-  /* ── Center: phone frame ── */
-  .center-panel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 20px 16px;
-    overflow-y: auto;
-    min-width: 340px;
-  }
+  .stat { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .stat:last-child { border:none; }
+  .stat-k { color:var(--dim); font-family:var(--mono); font-size:10px; }
+  .stat-v { font-family:var(--mono); font-size:11px; color:var(--accent); }
 
-  .phone-frame {
-    position: relative;
-    width: 300px;
-    background: #080810;
-    border-radius: 36px;
-    border: 2px solid #222230;
-    box-shadow:
-      0 0 0 1px #0d0d1a,
-      0 0 60px rgba(0,136,255,0.08),
-      inset 0 0 20px rgba(0,0,0,0.8);
-    overflow: hidden;
-    flex-shrink: 0;
-  }
+  .term { background:var(--bg); border:1px solid var(--border); border-radius:5px; padding:8px; font-family:var(--mono); font-size:10px; height:130px; overflow-y:auto; line-height:1.6; }
+  .term .l { color:var(--dim); }
+  .term .ok { color:var(--accent); }
+  .term .err { color:var(--warn); }
 
-  .phone-notch {
-    height: 28px;
-    background: #080810;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid #111120;
-  }
-
-  .phone-notch-inner {
-    width: 80px; height: 10px;
-    background: #0d0d1a;
-    border-radius: 5px;
-  }
-
-  .phone-screen {
-    width: 100%;
-    aspect-ratio: 9/16;
-    background: #000;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .phone-screen iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: block;
-  }
-
-  .phone-screen .boot-overlay {
-    position: absolute;
-    inset: 0;
-    background: #000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-  }
-
-  .android-logo {
-    width: 48px; height: 48px;
-    fill: var(--accent);
-  }
-
-  .boot-progress {
-    width: 120px; height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
-  }
-  .boot-progress-bar {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 0.5s ease;
-    box-shadow: 0 0 8px var(--accent);
-  }
-
-  .phone-nav {
-    height: 40px;
-    background: rgba(8,8,16,0.95);
-    border-top: 1px solid #111120;
-    display: flex;
-    align-items: center;
-    justify-content: space-evenly;
-  }
-
-  .nav-btn {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    transition: color 0.15s, background 0.15s;
-  }
-  .nav-btn:hover { color: var(--text); background: var(--border); }
-  .nav-btn:active { color: var(--accent); }
-
-  .phone-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 2px;
-    margin-top: 12px;
-    text-align: center;
-  }
-
-  /* ── Right panel ── */
-  .right-panel {
-    border-left: 1px solid var(--border);
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  /* ── Shared panel components ── */
-  .panel-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .panel-header {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .panel-body { padding: 14px; }
-
-  /* ── Buttons ── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  .btn:active { background: rgba(0,255,136,0.08); }
-  .btn.primary { border-color: var(--accent2); color: var(--accent2); }
-  .btn.primary:hover { background: rgba(0,136,255,0.1); }
-
-  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
-  /* ── Input ── */
-  input[type="text"], textarea {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 12px;
-    padding: 8px 10px;
-    width: 100%;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  input[type="text"]:focus, textarea:focus { border-color: var(--accent2); }
-
-  /* ── Log terminal ── */
-  .log-terminal {
-    background: var(--bg);
-    border-radius: 5px;
-    padding: 10px;
-    font-family: var(--mono);
-    font-size: 10px;
-    color: #44ff88;
-    height: 160px;
-    overflow-y: auto;
-    line-height: 1.6;
-    border: 1px solid var(--border);
-  }
-  .log-terminal .log-line { color: var(--text-dim); }
-  .log-terminal .log-line.err { color: var(--warn); }
-  .log-terminal .log-line.ok { color: var(--accent); }
-
-  /* ── Stats ── */
-  .stat-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-  }
-  .stat-row:last-child { border-bottom: none; }
-  .stat-label { color: var(--text-dim); font-family: var(--mono); font-size: 10px; }
-  .stat-value { font-family: var(--mono); font-size: 11px; color: var(--accent); }
-
-  /* ── Screenshot ── */
-  #screenshot-img {
-    width: 100%;
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    display: none;
-  }
-
-  /* ── Text input send ── */
-  .text-send-row {
-    display: flex; gap: 8px;
-  }
-  .text-send-row input { flex: 1; }
-
-  /* scrollbar */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; }
-    .left-panel, .right-panel { border: none; border-bottom: 1px solid var(--border); }
-  }
+  ::-webkit-scrollbar { width:3px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">DROID<span>/</span>WEB <span>// EMULATOR</span></div>
-  <div class="status-bar">
-    <span><span class="status-dot" id="emu-dot"></span><span id="emu-status">CHECKING...</span></span>
-    <span><span class="status-dot active"></span>NODE ONLINE</span>
+  <div class="logo">DROID<span>/</span>WEB <span>// H264 STREAM</span></div>
+  <div class="hstatus">
+    <span><span class="dot" id="emu-dot"></span><span id="emu-txt">CHECKING</span></span>
+    <span><span class="dot" id="ws-dot"></span><span id="ws-txt">DISCONNECTED</span></span>
   </div>
 </header>
 
 <main>
-  <!-- LEFT PANEL -->
-  <div class="left-panel">
-
-    <div class="panel-section">
-      <div class="panel-header">SYSTEM STATUS</div>
-      <div class="panel-body">
-        <div class="stat-row">
-          <span class="stat-label">EMULATOR</span>
-          <span class="stat-value" id="stat-emu">—</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">VNC STREAM</span>
-          <span class="stat-value" id="stat-vnc">ws:6080</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">ADB</span>
-          <span class="stat-value">emulator-5554</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">ANDROID</span>
-          <span class="stat-value">API 34</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">RESOLUTION</span>
-          <span class="stat-value">1080×1920</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">LAST PING</span>
-          <span class="stat-value" id="stat-ping">—</span>
-        </div>
+  <!-- LEFT -->
+  <div class="left">
+    <div class="sec">
+      <div class="sec-h">STATUS</div>
+      <div class="sec-b">
+        <div class="stat"><span class="stat-k">EMULATOR</span><span class="stat-v" id="s-emu">—</span></div>
+        <div class="stat"><span class="stat-k">STREAM</span><span class="stat-v" id="s-stream">—</span></div>
+        <div class="stat"><span class="stat-k">FPS</span><span class="stat-v" id="s-fps">—</span></div>
+        <div class="stat"><span class="stat-k">ANDROID</span><span class="stat-v">API 27</span></div>
+        <div class="stat"><span class="stat-k">RES</span><span class="stat-v">540×960</span></div>
       </div>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-header">NAVIGATION</div>
-      <div class="panel-body">
+    <div class="sec">
+      <div class="sec-h">NAVIGATION</div>
+      <div class="sec-b">
         <div class="btn-grid">
-          <button class="btn" onclick="sendKey('KEYCODE_HOME')">⌂ HOME</button>
-          <button class="btn" onclick="sendKey('KEYCODE_BACK')">← BACK</button>
-          <button class="btn" onclick="sendKey('KEYCODE_APP_SWITCH')">⧉ RECENTS</button>
-          <button class="btn" onclick="sendKey('KEYCODE_POWER')">⏻ POWER</button>
-          <button class="btn" onclick="sendKey('KEYCODE_VOLUME_UP')">+ VOL</button>
-          <button class="btn" onclick="sendKey('KEYCODE_VOLUME_DOWN')">- VOL</button>
+          <button class="btn" onclick="key('KEYCODE_HOME')">⌂ HOME</button>
+          <button class="btn" onclick="key('KEYCODE_BACK')">← BACK</button>
+          <button class="btn" onclick="key('KEYCODE_APP_SWITCH')">⧉ RECENT</button>
+          <button class="btn" onclick="key('KEYCODE_POWER')">⏻ POWER</button>
+          <button class="btn" onclick="key('KEYCODE_VOLUME_UP')">+ VOL</button>
+          <button class="btn" onclick="key('KEYCODE_VOLUME_DOWN')">- VOL</button>
         </div>
       </div>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-header">TEXT INPUT</div>
-      <div class="panel-body" style="display:flex;flex-direction:column;gap:8px;">
-        <div class="text-send-row">
-          <input type="text" id="text-input" placeholder="Type text to send..." onkeydown="if(event.key==='Enter')sendText()">
-          <button class="btn primary" onclick="sendText()">SEND</button>
+    <div class="sec">
+      <div class="sec-h">TEXT</div>
+      <div class="sec-b" style="display:flex;flex-direction:column;gap:8px;">
+        <div class="row">
+          <input type="text" id="txt" placeholder="Type to send..." onkeydown="if(event.key==='Enter')sendText()">
+          <button class="btn blue" onclick="sendText()">SEND</button>
         </div>
-        <button class="btn" onclick="sendKey('KEYCODE_ENTER')" style="width:100%;">↵ ENTER</button>
+        <button class="btn" onclick="key('KEYCODE_ENTER')" style="width:100%">↵ ENTER</button>
       </div>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-header">SCREENSHOT <button class="btn" style="padding:2px 8px;font-size:10px;" onclick="takeScreenshot()">CAPTURE</button></div>
-      <div class="panel-body">
-        <img id="screenshot-img" alt="screenshot">
-        <div id="screenshot-msg" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);">Click CAPTURE to take a screenshot</div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- CENTER: PHONE + VNC -->
-  <div class="center-panel">
-    <div class="phone-frame">
-      <div class="phone-notch"><div class="phone-notch-inner"></div></div>
-      <div class="phone-screen">
-        <!-- Boot screen until VNC loads -->
-        <div class="boot-overlay" id="boot-overlay">
-          <svg class="android-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C14.15 1.23 13.1 1 12 1c-1.1 0-2.15.23-3.12.63L7.4.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.3 1.3C6.01 3.07 4.55 5.37 4.03 8h15.95c-.53-2.63-1.99-4.93-3.95-6.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
-          </svg>
-          <div id="boot-text">BOOTING ANDROID...</div>
-          <div class="boot-progress"><div class="boot-progress-bar" id="boot-bar"></div></div>
+    <div class="sec">
+      <div class="sec-h">QUICK LAUNCH</div>
+      <div class="sec-b">
+        <div class="btn-grid">
+          <button class="btn" onclick="launch('com.android.settings')">⚙ SETTINGS</button>
+          <button class="btn" onclick="launch('com.android.calculator2')">🔢 CALC</button>
+          <button class="btn" onclick="launch('com.android.browser')">🌐 BROWSER</button>
+          <button class="btn" onclick="launch('com.android.contacts')">👤 CONTACTS</button>
         </div>
-
-        <!-- noVNC iframe (shown after boot) -->
-        <iframe id="vnc-frame"
-          src=""
-          style="display:none;width:100%;height:100%;border:none;"
-          allowfullscreen>
-        </iframe>
       </div>
-      <div class="phone-nav">
-        <button class="nav-btn" onclick="sendKey('KEYCODE_APP_SWITCH')" title="Recents">⧉</button>
-        <button class="nav-btn" onclick="sendKey('KEYCODE_HOME')" title="Home">◉</button>
-        <button class="nav-btn" onclick="sendKey('KEYCODE_BACK')" title="Back">◁</button>
-      </div>
-    </div>
-    <div class="phone-label">// ANDROID 14 · API 34 · PIXEL 6 //</div>
-
-    <div style="margin-top:16px;display:flex;gap:8px;">
-      <button class="btn primary" onclick="loadVNC()">▶ CONNECT VNC</button>
-      <button class="btn" onclick="takeScreenshot()">📷 SCREENSHOT</button>
     </div>
   </div>
 
-  <!-- RIGHT PANEL -->
-  <div class="right-panel">
-
-    <div class="panel-section">
-      <div class="panel-header">ADB SHELL</div>
-      <div class="panel-body" style="display:flex;flex-direction:column;gap:8px;">
-        <div class="text-send-row">
-          <input type="text" id="adb-input" placeholder="e.g. am start -n com.android.settings/.Settings" onkeydown="if(event.key==='Enter')runAdb()">
-          <button class="btn primary" onclick="runAdb()">RUN</button>
+  <!-- CENTER -->
+  <div class="center">
+    <div class="phone">
+      <div class="notch"><div class="notch-inner"></div></div>
+      <div class="screen-wrap" id="screen-wrap">
+        <canvas id="screen"></canvas>
+        <div id="fps-badge">— FPS</div>
+        <div class="boot-overlay" id="boot">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C14.15 1.23 13.1 1 12 1c-1.1 0-2.15.23-3.12.63L7.4.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.3 1.3C6.01 3.07 4.55 5.37 4.03 8h15.95c-.53-2.63-1.99-4.93-3.95-6.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/></svg>
+          <div id="boot-txt">BOOTING ANDROID...</div>
+          <div class="boot-bar-wrap"><div class="boot-bar" id="boot-bar"></div></div>
         </div>
-        <div class="log-terminal" id="adb-output">
-          <div class="log-line ok">// ADB console ready</div>
-          <div class="log-line">// Only safe commands allowed: input, am, pm, settings, wm</div>
+      </div>
+      <div class="nav">
+        <button onclick="key('KEYCODE_APP_SWITCH')" title="Recents">⧉</button>
+        <button onclick="key('KEYCODE_HOME')" title="Home">◉</button>
+        <button onclick="key('KEYCODE_BACK')" title="Back">◁</button>
+      </div>
+    </div>
+    <div class="phone-label">// ANDROID 8.1 · API 27 · H.264 STREAM //</div>
+    <div class="connect-row">
+      <button class="btn blue" onclick="connectStream()">▶ CONNECT</button>
+      <button class="btn" onclick="disconnectStream()">■ STOP</button>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="sec">
+      <div class="sec-h">ADB SHELL</div>
+      <div class="sec-b" style="display:flex;flex-direction:column;gap:8px;">
+        <div class="row">
+          <input type="text" id="adb-in" placeholder="input tap 270 480..." onkeydown="if(event.key==='Enter')runAdb()">
+          <button class="btn blue" onclick="runAdb()">RUN</button>
+        </div>
+        <div class="term" id="adb-out">
+          <div class="l ok">// ADB console ready</div>
+          <div class="l">// Allowed: input, am, pm, settings, wm</div>
         </div>
       </div>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-header">QUICK LAUNCH</div>
-      <div class="panel-body">
-        <div class="btn-grid">
-          <button class="btn" onclick="launchApp('com.android.settings/.Settings')">⚙ SETTINGS</button>
-          <button class="btn" onclick="launchApp('com.android.chrome/com.google.android.apps.chrome.Main')">🌐 CHROME</button>
-          <button class="btn" onclick="launchApp('com.android.calculator2/.Calculator')">🔢 CALC</button>
-          <button class="btn" onclick="launchApp('com.android.camera2/.CameraActivity')">📷 CAMERA</button>
-          <button class="btn" onclick="launchApp('com.google.android.gm/.ConversationListActivityGmail')">📧 GMAIL</button>
-          <button class="btn" onclick="launchApp('com.google.android.youtube/.HomeActivity')">▶ YOUTUBE</button>
+    <div class="sec">
+      <div class="sec-h">STREAM LOG</div>
+      <div class="sec-b">
+        <div class="term" id="stream-log">
+          <div class="l">// Waiting for stream...</div>
         </div>
       </div>
     </div>
-
-    <div class="panel-section">
-      <div class="panel-header">EMULATOR LOGS <button class="btn" style="padding:2px 8px;font-size:10px;" onclick="fetchLogs()">REFRESH</button></div>
-      <div class="panel-body">
-        <div class="log-terminal" id="log-output">
-          <div class="log-line">// Click REFRESH to load logs</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-header">DISPLAY CONTROL</div>
-      <div class="panel-body" style="display:flex;flex-direction:column;gap:8px;">
-        <div class="btn-row">
-          <button class="btn" onclick="runAdbDirect('wm size 1080x1920')">1080p</button>
-          <button class="btn" onclick="runAdbDirect('wm size 720x1280')">720p</button>
-          <button class="btn" onclick="runAdbDirect('wm size reset')">RESET</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn" onclick="runAdbDirect('wm density 420')">DPI 420</button>
-          <button class="btn" onclick="runAdbDirect('wm density 320')">DPI 320</button>
-          <button class="btn" onclick="runAdbDirect('wm density reset')">DPI RESET</button>
-        </div>
-      </div>
-    </div>
-
   </div>
 </main>
 
+<!-- Broadway.js H.264 decoder -->
+<script src="https://cdn.jsdelivr.net/npm/broadway-player@0.3.5/Player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/broadway-player@0.3.5/Decoder.js"></script>
 <script>
-  // ── Boot animation ────────────────────────────────────────────────────────
-  let bootProgress = 0;
-  const bootBar = document.getElementById('boot-bar');
-  const bootText = document.getElementById('boot-text');
-  const bootMessages = [
-    'INITIALIZING QEMU...',
-    'LOADING ANDROID KERNEL...',
-    'MOUNTING FILESYSTEMS...',
-    'STARTING SERVICES...',
-    'BOOTING ANDROID 14...',
-    'LAUNCHING HOME SCREEN...',
-    'READY'
-  ];
-  let bootIdx = 0;
-  const bootInterval = setInterval(() => {
-    bootProgress = Math.min(bootProgress + Math.random() * 8, 95);
-    bootBar.style.width = bootProgress + '%';
-    if (bootIdx < bootMessages.length) {
-      bootText.textContent = bootMessages[bootIdx++];
+// ── Broadway player setup ───────────────────────────────────────────────────
+const canvas = document.getElementById('screen');
+const screenWrap = document.getElementById('screen-wrap');
+
+let player = null;
+let ws = null;
+let frameCount = 0;
+let fpsInterval = null;
+let lastFrameTime = 0;
+
+function initPlayer() {
+  player = new Player({
+    useWorker: true,
+    workerFile: 'https://cdn.jsdelivr.net/npm/broadway-player@0.3.5/Decoder.js',
+    reuseMemory: true,
+    webgl: 'auto'
+  });
+
+  player.onPictureDecoded = (buffer, width, height) => {
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(width, height);
+    imageData.data.set(buffer);
+    ctx.putImageData(imageData, 0, 0);
+
+    frameCount++;
+    const now = Date.now();
+    if (now - lastFrameTime > 0) {
+      document.getElementById('fps-badge').textContent =
+        Math.round(1000 / (now - lastFrameTime)) + ' FPS';
     }
-  }, 800);
+    lastFrameTime = now;
 
-  // ── Status polling ────────────────────────────────────────────────────────
-  async function checkStatus() {
-    try {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      const dot = document.getElementById('emu-dot');
-      const statusEl = document.getElementById('emu-status');
-      const statEmu = document.getElementById('stat-emu');
-      const ping = document.getElementById('stat-ping');
-
-      if (data.emulator === 'running') {
-        dot.className = 'status-dot active';
-        statusEl.textContent = 'EMU RUNNING';
-        statEmu.textContent = 'ONLINE';
-
-        // Stop boot animation when emulator is up
-        if (bootProgress < 100) {
-          clearInterval(bootInterval);
-          bootProgress = 100;
-          bootBar.style.width = '100%';
-          bootText.textContent = 'READY';
-          setTimeout(() => {
-            document.getElementById('boot-overlay').style.display = 'none';
-          }, 600);
-        }
-      } else {
-        dot.className = 'status-dot warn';
-        statusEl.textContent = 'STARTING UP';
-        statEmu.textContent = 'STARTING';
-      }
-
-      ping.textContent = new Date().toLocaleTimeString();
-    } catch (e) {
-      document.getElementById('emu-dot').className = 'status-dot';
-      document.getElementById('emu-status').textContent = 'OFFLINE';
+    // Hide boot overlay on first frame
+    const boot = document.getElementById('boot');
+    if (boot.style.display !== 'none') {
+      boot.style.opacity = '0';
+      setTimeout(() => boot.style.display = 'none', 500);
     }
-  }
+  };
+}
 
-  checkStatus();
-  setInterval(checkStatus, 5000);
+// ── WebSocket stream ────────────────────────────────────────────────────────
+function connectStream() {
+  if (ws) ws.close();
+  initPlayer();
 
-  // ── VNC loader ────────────────────────────────────────────────────────────
-  function loadVNC() {
-    const frame = document.getElementById('vnc-frame');
-    const host = window.location.hostname;
-    const port = window.location.port || (window.location.protocol === 'https:' ? 443 : 80);
-    // noVNC served by websockify on port 6080, but on Railway we proxy through Node
-    frame.src = `/novnc/vnc.html?host=${host}&port=${port}&path=websockify&autoconnect=true&resize=scale`;
-    frame.style.display = 'block';
-    document.getElementById('boot-overlay').style.display = 'none';
-    document.getElementById('stat-vnc').textContent = 'CONNECTED';
-  }
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/stream`);
+  ws.binaryType = 'arraybuffer';
 
-  // ── Key events ────────────────────────────────────────────────────────────
-  async function sendKey(keycode) {
-    await fetch('/api/key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keycode })
-    });
-  }
+  ws.onopen = () => {
+    setWsStatus(true);
+    streamLog('Connected to H.264 stream', 'ok');
+    document.getElementById('s-stream').textContent = 'ACTIVE';
+    startFpsCounter();
+  };
 
-  // ── Text input ────────────────────────────────────────────────────────────
-  async function sendText() {
-    const input = document.getElementById('text-input');
-    const text = input.value.trim();
-    if (!text) return;
-    await fetch('/api/adb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: `input text "${text.replace(/"/g, '\\"')}"` })
-    });
-    input.value = '';
-  }
-
-  // ── ADB console ───────────────────────────────────────────────────────────
-  async function runAdb() {
-    const input = document.getElementById('adb-input');
-    const cmd = input.value.trim();
-    if (!cmd) return;
-    addAdbLog(`$ ${cmd}`, 'ok');
-    input.value = '';
-
-    const res = await fetch('/api/adb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd })
-    });
-    const data = await res.json();
-    if (data.output) addAdbLog(data.output);
-    if (data.error) addAdbLog(data.error, 'err');
-  }
-
-  async function runAdbDirect(cmd) {
-    addAdbLog(`$ ${cmd}`, 'ok');
-    const res = await fetch('/api/adb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd })
-    });
-    const data = await res.json();
-    if (data.output) addAdbLog(data.output);
-    if (data.error) addAdbLog(data.error, 'err');
-  }
-
-  function addAdbLog(text, type = '') {
-    const term = document.getElementById('adb-output');
-    text.split('\n').filter(Boolean).forEach(line => {
-      const el = document.createElement('div');
-      el.className = `log-line ${type}`;
-      el.textContent = line;
-      term.appendChild(el);
-    });
-    term.scrollTop = term.scrollHeight;
-  }
-
-  // ── App launcher ──────────────────────────────────────────────────────────
-  async function launchApp(component) {
-    await runAdbDirect(`am start -n ${component}`);
-  }
-
-  // ── Screenshot ────────────────────────────────────────────────────────────
-  async function takeScreenshot() {
-    const img = document.getElementById('screenshot-img');
-    const msg = document.getElementById('screenshot-msg');
-    msg.textContent = 'Capturing...';
-    img.style.display = 'none';
-
-    try {
-      const res = await fetch('/api/screenshot');
-      if (!res.ok) throw new Error('Failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      img.src = url;
-      img.style.display = 'block';
-      msg.textContent = `Captured at ${new Date().toLocaleTimeString()}`;
-    } catch (e) {
-      msg.textContent = 'Screenshot failed — emulator may still be booting';
+  ws.onmessage = (e) => {
+    if (player && e.data instanceof ArrayBuffer) {
+      player.decode(new Uint8Array(e.data));
     }
-  }
+  };
 
-  // ── Logs ──────────────────────────────────────────────────────────────────
-  async function fetchLogs() {
-    const term = document.getElementById('log-output');
-    term.innerHTML = '<div class="log-line">Loading...</div>';
-    const res = await fetch('/api/logs/emulator');
-    const data = await res.json();
-    term.innerHTML = '';
-    data.lines.forEach(line => {
-      const el = document.createElement('div');
-      el.className = 'log-line' + (line.includes('ERROR') || line.includes('error') ? ' err' : '');
-      el.textContent = line;
-      term.appendChild(el);
+  ws.onclose = () => {
+    setWsStatus(false);
+    streamLog('Stream disconnected');
+    document.getElementById('s-stream').textContent = 'DISCONNECTED';
+    stopFpsCounter();
+  };
+
+  ws.onerror = (e) => streamLog('WebSocket error', 'err');
+}
+
+function disconnectStream() {
+  if (ws) { ws.close(); ws = null; }
+  if (player) { player = null; }
+  stopFpsCounter();
+}
+
+function startFpsCounter() {
+  fpsInterval = setInterval(() => {
+    document.getElementById('s-fps').textContent = frameCount + '/s';
+    frameCount = 0;
+  }, 1000);
+}
+
+function stopFpsCounter() {
+  clearInterval(fpsInterval);
+  document.getElementById('s-fps').textContent = '—';
+  document.getElementById('fps-badge').textContent = '— FPS';
+}
+
+// ── Touch → ADB tap/swipe ───────────────────────────────────────────────────
+let touchStart = null;
+const wrap = document.getElementById('screen-wrap');
+
+wrap.addEventListener('mousedown', e => {
+  touchStart = { x: e.offsetX, y: e.offsetY, t: Date.now() };
+});
+
+wrap.addEventListener('mouseup', e => {
+  if (!touchStart) return;
+  const dx = e.offsetX - touchStart.x;
+  const dy = e.offsetY - touchStart.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const scaleX = 540 / wrap.offsetWidth;
+  const scaleY = 960 / wrap.offsetHeight;
+
+  if (dist < 8) {
+    // Tap
+    fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ x: Math.round(e.offsetX * scaleX), y: Math.round(e.offsetY * scaleY) })
     });
-    term.scrollTop = term.scrollHeight;
+  } else {
+    // Swipe
+    const dur = Math.min(Date.now() - touchStart.t, 500);
+    fetch('/api/swipe', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        x1: Math.round(touchStart.x * scaleX), y1: Math.round(touchStart.y * scaleY),
+        x2: Math.round(e.offsetX * scaleX),    y2: Math.round(e.offsetY * scaleY),
+        duration: dur
+      })
+    });
   }
+  touchStart = null;
+});
+
+// Touch support
+wrap.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const r = wrap.getBoundingClientRect();
+  touchStart = { x: t.clientX - r.left, y: t.clientY - r.top, t: Date.now() };
+}, { passive: false });
+
+wrap.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!touchStart) return;
+  const t = e.changedTouches[0];
+  const r = wrap.getBoundingClientRect();
+  const ex = t.clientX - r.left, ey = t.clientY - r.top;
+  const dx = ex - touchStart.x, dy = ey - touchStart.y;
+  const scaleX = 540 / wrap.offsetWidth, scaleY = 960 / wrap.offsetHeight;
+
+  if (Math.sqrt(dx*dx+dy*dy) < 8) {
+    fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ x: Math.round(ex*scaleX), y: Math.round(ey*scaleY) })
+    });
+  } else {
+    fetch('/api/swipe', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ x1:Math.round(touchStart.x*scaleX), y1:Math.round(touchStart.y*scaleY),
+        x2:Math.round(ex*scaleX), y2:Math.round(ey*scaleY), duration:200 })
+    });
+  }
+  touchStart = null;
+}, { passive: false });
+
+// ── ADB console ─────────────────────────────────────────────────────────────
+async function runAdb() {
+  const inp = document.getElementById('adb-in');
+  const cmd = inp.value.trim();
+  if (!cmd) return;
+  addTerm('adb-out', `$ ${cmd}`, 'ok');
+  inp.value = '';
+  const res = await fetch('/api/adb', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ command: cmd }) });
+  const d = await res.json();
+  if (d.output) addTerm('adb-out', d.output);
+  if (d.error)  addTerm('adb-out', d.error, 'err');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function key(k) { fetch('/api/key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ keycode: k }) }); }
+function sendText() {
+  const inp = document.getElementById('txt');
+  if (!inp.value.trim()) return;
+  fetch('/api/text', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: inp.value }) });
+  inp.value = '';
+}
+function launch(pkg) { fetch('/api/launch', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ pkg }) }); }
+
+function addTerm(id, text, cls='') {
+  const t = document.getElementById(id);
+  text.split('\n').filter(Boolean).forEach(l => {
+    const d = document.createElement('div');
+    d.className = `l ${cls}`;
+    d.textContent = l;
+    t.appendChild(d);
+  });
+  t.scrollTop = t.scrollHeight;
+}
+function streamLog(msg, cls='') { addTerm('stream-log', msg, cls); }
+
+function setWsStatus(on) {
+  document.getElementById('ws-dot').className = 'dot' + (on ? ' on' : '');
+  document.getElementById('ws-txt').textContent = on ? 'STREAMING' : 'DISCONNECTED';
+}
+
+// ── Boot animation ───────────────────────────────────────────────────────────
+let bp = 0;
+const bmsgs = ['INIT QEMU...','LOAD KERNEL...','MOUNT FS...','START SERVICES...','ANDROID READY'];
+let bi = 0;
+const bint = setInterval(() => {
+  bp = Math.min(bp + Math.random() * 9, 94);
+  document.getElementById('boot-bar').style.width = bp + '%';
+  if (bi < bmsgs.length) document.getElementById('boot-txt').textContent = bmsgs[bi++];
+}, 900);
+
+// ── Status polling ────────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const d = await (await fetch('/api/status')).json();
+    const on = d.emulator === 'running';
+    document.getElementById('emu-dot').className = 'dot' + (on ? ' on' : ' warn');
+    document.getElementById('emu-txt').textContent = on ? 'EMU ONLINE' : 'STARTING';
+    document.getElementById('s-emu').textContent = on ? 'ONLINE' : 'STARTING';
+    if (on) { clearInterval(bint); document.getElementById('boot-bar').style.width='100%'; }
+  } catch {}
+}
+poll(); setInterval(poll, 5000);
 </script>
 </body>
 </html>
